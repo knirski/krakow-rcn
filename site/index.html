@@ -167,6 +167,7 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   </div>
 
   <div class="stat" id="visible-count"></div>
+  <div class="stat" id="zoom-mode"></div>
 </div>
 <div id="tooltip"></div>
 <div id="detail-panel"><button class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button><div id="detail-content"></div></div>
@@ -387,6 +388,12 @@ const isMobile = window.innerWidth <= 600;
 const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: isMobile ? 11 : 12, pitch: isMobile ? 0 : 45, bearing: 0 };
 const tooltipEl = document.getElementById('tooltip');
 let renderQueued = false;
+let currentZoom = INITIAL_VIEW.zoom;
+
+// Zoom thresholds for layer transitions
+const ZOOM_HEATMAP_ONLY = 13;    // below: heatmap only
+const ZOOM_SCATTER_ONLY = 15;    // above: scatter only
+// between: both with crossfade
 
 function render() {
   if (renderQueued) return;
@@ -394,51 +401,106 @@ function render() {
   requestAnimationFrame(renderNow);
 }
 
+// Heatmap color ramp: dark purple -> magenta -> orange -> yellow
+const HEATMAP_COLORS = [
+  [0, 0, 0, 0],
+  [68, 1, 84, 120],
+  [72, 36, 117, 160],
+  [65, 68, 135, 180],
+  [33, 145, 140, 200],
+  [68, 191, 112, 220],
+  [253, 231, 37, 240],
+];
+
 function renderNow() {
   renderQueued = false;
   const colorFn = getColorFn(state.colorBy);
   const layers = [];
   let totalVisible = 0;
+  const z = currentZoom;
+
+  // Opacity crossfade between heatmap and scatter
+  const heatOpacity = z <= ZOOM_HEATMAP_ONLY ? 1 : z >= ZOOM_SCATTER_ONLY ? 0 :
+    1 - (z - ZOOM_HEATMAP_ONLY) / (ZOOM_SCATTER_ONLY - ZOOM_HEATMAP_ONLY);
+  const scatterOpacity = z >= ZOOM_SCATTER_ONLY ? 0.85 : z <= ZOOM_HEATMAP_ONLY ? 0 :
+    0.85 * (z - ZOOM_HEATMAP_ONLY) / (ZOOM_SCATTER_ONLY - ZOOM_HEATMAP_ONLY);
+  const showHeat = heatOpacity > 0.01;
+  const showScatter = scatterOpacity > 0.01;
+
+  // Collect all visible data for heatmap
+  const allFiltered = [];
 
   if (state.showLokale && DATA_LOKALE.length) {
     const filtered = filterData(DATA_LOKALE);
     totalVisible += filtered.length;
-    layers.push(new deck.ScatterplotLayer({
-      id: 'lokale', data: filtered,
-      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius, radiusMinPixels: 2, radiusMaxPixels: 200,
-      pickable: true, opacity: 0.85, radiusUnits: 'meters',
-      updateTriggers: { getFillColor: [state.colorBy] },
-    }));
+    allFiltered.push(...filtered);
+    if (showScatter) {
+      layers.push(new deck.ScatterplotLayer({
+        id: 'lokale', data: filtered,
+        getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+        getRadius: state.radius, radiusMinPixels: 2, radiusMaxPixels: 200,
+        pickable: true, opacity: scatterOpacity, radiusUnits: 'meters',
+        updateTriggers: { getFillColor: [state.colorBy] },
+      }));
+    }
   }
 
   if (state.showDzialki && DATA_DZIALKI.length) {
     const filtered = filterData(DATA_DZIALKI);
     totalVisible += filtered.length;
-    layers.push(new deck.ScatterplotLayer({
-      id: 'dzialki', data: filtered,
-      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
-      pickable: true, opacity: 0.75, radiusUnits: 'meters',
-      stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
-      updateTriggers: { getFillColor: [state.colorBy] },
-    }));
+    allFiltered.push(...filtered);
+    if (showScatter) {
+      layers.push(new deck.ScatterplotLayer({
+        id: 'dzialki', data: filtered,
+        getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+        getRadius: state.radius * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
+        pickable: true, opacity: scatterOpacity * 0.88, radiusUnits: 'meters',
+        stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
+        updateTriggers: { getFillColor: [state.colorBy] },
+      }));
+    }
   }
 
   if (state.showBudynki && DATA_BUDYNKI.length) {
     const filtered = filterData(DATA_BUDYNKI);
     totalVisible += filtered.length;
-    layers.push(new deck.ScatterplotLayer({
-      id: 'budynki', data: filtered,
-      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
-      pickable: true, opacity: 0.8, radiusUnits: 'meters',
-      updateTriggers: { getFillColor: [state.colorBy] },
+    allFiltered.push(...filtered);
+    if (showScatter) {
+      layers.push(new deck.ScatterplotLayer({
+        id: 'budynki', data: filtered,
+        getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+        getRadius: state.radius * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
+        pickable: true, opacity: scatterOpacity * 0.94, radiusUnits: 'meters',
+        updateTriggers: { getFillColor: [state.colorBy] },
+      }));
+    }
+  }
+
+  // Heatmap layer (visible at lower zoom levels)
+  if (showHeat && allFiltered.length) {
+    layers.unshift(new deck.HeatmapLayer({
+      id: 'heatmap',
+      data: allFiltered,
+      getPosition: d => [d.lon, d.lat],
+      getWeight: d => {
+        const v = d.cena_za_m2 || d.cena_transakcji;
+        return v ? Math.log10(Math.max(v, 1)) : 1;
+      },
+      radiusPixels: z < 12 ? 30 : 20,
+      intensity: 1.5,
+      threshold: 0.05,
+      opacity: heatOpacity,
+      colorRange: HEATMAP_COLORS.slice(1).map(c => c.slice(0, 3)),
+      updateTriggers: { getWeight: [state.colorBy] },
     }));
   }
 
   document.getElementById('visible-count').textContent =
     `Widocznych: ${totalVisible.toLocaleString('pl-PL')} transakcji`;
+  const modeEl = document.getElementById('zoom-mode');
+  if (showHeat && !showScatter) modeEl.textContent = 'Mapa ciepla (przybliz aby zobaczyc punkty)';
+  else if (showHeat && showScatter) modeEl.textContent = 'Mapa ciepla + punkty';
+  else modeEl.textContent = 'Punkty';
   deckgl.setProps({ layers });
 }
 
@@ -447,6 +509,12 @@ const deckgl = new deck.DeckGL({
   mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   initialViewState: INITIAL_VIEW,
   controller: true,
+  onViewStateChange: ({viewState}) => {
+    if (Math.abs(viewState.zoom - currentZoom) > 0.1) {
+      currentZoom = viewState.zoom;
+      render();
+    }
+  },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
       tooltipEl.innerHTML = buildTooltip(object);
