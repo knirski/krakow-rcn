@@ -167,7 +167,6 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   </div>
 
   <div class="stat" id="visible-count"></div>
-  <div class="stat" id="zoom-mode"></div>
 </div>
 <div id="tooltip"></div>
 <div id="detail-panel"><button class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button><div id="detail-content"></div></div>
@@ -388,81 +387,49 @@ const isMobile = window.innerWidth <= 600;
 const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: isMobile ? 11 : 12, pitch: isMobile ? 0 : 45, bearing: 0 };
 const tooltipEl = document.getElementById('tooltip');
 let renderQueued = false;
-let currentZoom = INITIAL_VIEW.zoom;
-
-// Zoom threshold: below = heatmap, above = scatter points
-const ZOOM_THRESHOLD = 14;
-
-// Cache filtered data - only recompute when filters change, not on zoom
-let cachedLokale = [], cachedDzialki = [], cachedBudynki = [];
-let filterVersion = 0;
-
-function refilter() {
-  filterVersion++;
-  cachedLokale = (state.showLokale && DATA_LOKALE.length) ? filterData(DATA_LOKALE) : [];
-  cachedDzialki = (state.showDzialki && DATA_DZIALKI.length) ? filterData(DATA_DZIALKI) : [];
-  cachedBudynki = (state.showBudynki && DATA_BUDYNKI.length) ? filterData(DATA_BUDYNKI) : [];
-}
 
 function render() {
-  refilter();
-  renderLayers();
-}
-
-function renderLayers() {
   if (renderQueued) return;
   renderQueued = true;
   requestAnimationFrame(renderNow);
 }
 
-const HEATMAP_COLORS = [[68,1,84],[72,36,117],[65,68,135],[33,145,140],[68,191,112],[253,231,37]];
-
 function renderNow() {
   renderQueued = false;
   const colorFn = getColorFn(state.colorBy);
   const layers = [];
-  const z = currentZoom;
-  const totalVisible = cachedLokale.length + cachedDzialki.length + cachedBudynki.length;
+  let totalVisible = 0;
 
-  const showHeat = z < ZOOM_THRESHOLD;
-  const showScatter = !showHeat;
-
-  const heatWeight = d => {
-    const v = d.cena_za_m2 || d.cena_transakcji;
-    return v ? Math.log10(Math.max(v, 1)) : 1;
-  };
-  const heatProps = {
-    getPosition: d => [d.lon, d.lat], getWeight: heatWeight,
-    radiusPixels: z < 12 ? 30 : 20, intensity: 1.5, threshold: 0.05,
-    opacity: 1, colorRange: HEATMAP_COLORS,
-  };
-
-  // Heatmap: one layer per dataset (avoids merging arrays)
-  if (showHeat) {
-    if (cachedLokale.length) layers.push(new deck.HeatmapLayer({id: 'heat-lok', data: cachedLokale, ...heatProps}));
-    if (cachedDzialki.length) layers.push(new deck.HeatmapLayer({id: 'heat-dzi', data: cachedDzialki, ...heatProps}));
-    if (cachedBudynki.length) layers.push(new deck.HeatmapLayer({id: 'heat-bud', data: cachedBudynki, ...heatProps}));
-  }
-
-  // Scatter points
-  if (showScatter) {
-    if (cachedLokale.length) layers.push(new deck.ScatterplotLayer({
-      id: 'lokale', data: cachedLokale,
+  if (state.showLokale && DATA_LOKALE.length) {
+    const filtered = filterData(DATA_LOKALE);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
       getRadius: state.radius, radiusMinPixels: 2, radiusMaxPixels: 200,
       pickable: true, opacity: 0.85, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
-    if (cachedDzialki.length) layers.push(new deck.ScatterplotLayer({
-      id: 'dzialki', data: cachedDzialki,
+  }
+
+  if (state.showDzialki && DATA_DZIALKI.length) {
+    const filtered = filterData(DATA_DZIALKI);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
       getRadius: state.radius * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
       pickable: true, opacity: 0.75, radiusUnits: 'meters',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
-    if (cachedBudynki.length) layers.push(new deck.ScatterplotLayer({
-      id: 'budynki', data: cachedBudynki,
+  }
+
+  if (state.showBudynki && DATA_BUDYNKI.length) {
+    const filtered = filterData(DATA_BUDYNKI);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
       getRadius: state.radius * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
       pickable: true, opacity: 0.8, radiusUnits: 'meters',
@@ -472,10 +439,6 @@ function renderNow() {
 
   document.getElementById('visible-count').textContent =
     `Widocznych: ${totalVisible.toLocaleString('pl-PL')} transakcji`;
-  const modeEl = document.getElementById('zoom-mode');
-  if (showHeat && !showScatter) modeEl.textContent = 'Mapa ciepla (przybliz aby zobaczyc punkty)';
-  else if (showHeat && showScatter) modeEl.textContent = 'Mapa ciepla + punkty';
-  else modeEl.textContent = 'Punkty';
   deckgl.setProps({ layers });
 }
 
@@ -484,11 +447,6 @@ const deckgl = new deck.DeckGL({
   mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   initialViewState: INITIAL_VIEW,
   controller: true,
-  onViewStateChange: ({viewState}) => {
-    const crossed = (currentZoom < ZOOM_THRESHOLD) !== (viewState.zoom < ZOOM_THRESHOLD);
-    currentZoom = viewState.zoom;
-    if (crossed) renderLayers();
-  },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
       tooltipEl.innerHTML = buildTooltip(object);
