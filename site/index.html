@@ -168,6 +168,18 @@ input[type=text]::placeholder { color: #666; }
   </div>
 
   <div class="section">
+    <div class="section-title">Filtr ceny za m² (PLN/m²)</div>
+    <div class="range-row">
+      <input type="range" id="m2-min" min="0" max="30000" step="500" value="0"/>
+      <span class="range-val" id="m2-min-val">0</span>
+    </div>
+    <div class="range-row">
+      <input type="range" id="m2-max" min="0" max="30000" step="500" value="30000"/>
+      <span class="range-val" id="m2-max-val">30 000</span>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Filtr rynku</div>
     <select id="filter-rynek">
       <option value="">wszystkie</option>
@@ -195,6 +207,9 @@ input[type=text]::placeholder { color: #666; }
 
   <div class="stat" id="visible-count"></div>
   <div id="stats-box"></div>
+  <div style="margin-top:10px">
+    <button id="share-btn" style="width:100%;padding:6px;font-size:12px;background:#2a2a4a;color:#7dd3fc;border:1px solid #444;border-radius:4px;cursor:pointer">Kopiuj link</button>
+  </div>
 </div>
 <div id="tooltip"></div>
 <div id="detail-panel"><button class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button><div id="detail-content"></div></div>
@@ -324,6 +339,7 @@ function updateLegend(field) {
 let state = {
   showLokale: true, showDzialki: false, showBudynki: false,
   colorBy: 'cena_za_m2', priceMin: 0, priceMax: 20000000,
+  m2Min: 0, m2Max: 30000,
   rynek: '', yearMin: 2000, yearMax: 2026, filterOutliers: true,
 };
 
@@ -335,6 +351,8 @@ function filterData(data) {
     const y = getYear(d.data_dokumentu);
     if (y != null && (y < state.yearMin || y > state.yearMax)) return false;
     if (state.filterOutliers && d.cena_za_m2 != null && (d.cena_za_m2 < 100 || d.cena_za_m2 > 200000)) return false;
+    const m2 = d.cena_za_m2;
+    if (m2 != null && (m2 < state.m2Min || m2 > state.m2Max)) return false;
     return true;
   });
 }
@@ -466,6 +484,8 @@ function stateToHash() {
   if (state.rynek) parts.push(`ryn=${state.rynek}`);
   if (state.priceMin > 0) parts.push(`pmin=${state.priceMin}`);
   if (state.priceMax < 20000000) parts.push(`pmax=${state.priceMax}`);
+  if (state.m2Min > 0) parts.push(`m2min=${state.m2Min}`);
+  if (state.m2Max < 30000) parts.push(`m2max=${state.m2Max}`);
   if (state.yearMin > 2000) parts.push(`ymin=${state.yearMin}`);
   if (state.yearMax < 2026) parts.push(`ymax=${state.yearMax}`);
   if (!state.filterOutliers) parts.push('out=0');
@@ -501,6 +521,8 @@ function applyHash() {
   if (p.ryn) { state.rynek = p.ryn; document.getElementById('filter-rynek').value = p.ryn; }
   if (p.pmin) { state.priceMin = +p.pmin; document.getElementById('price-min').value = p.pmin; document.getElementById('price-min-val').textContent = (+p.pmin).toLocaleString('pl-PL'); }
   if (p.pmax) { state.priceMax = +p.pmax; document.getElementById('price-max').value = p.pmax; document.getElementById('price-max-val').textContent = (+p.pmax).toLocaleString('pl-PL'); }
+  if (p.m2min) { state.m2Min = +p.m2min; document.getElementById('m2-min').value = p.m2min; document.getElementById('m2-min-val').textContent = (+p.m2min).toLocaleString('pl-PL'); }
+  if (p.m2max) { state.m2Max = +p.m2max; document.getElementById('m2-max').value = p.m2max; document.getElementById('m2-max-val').textContent = (+p.m2max).toLocaleString('pl-PL'); }
   if (p.ymin) { state.yearMin = +p.ymin; document.getElementById('year-min').value = p.ymin; document.getElementById('year-min-val').textContent = p.ymin; }
   if (p.ymax) { state.yearMax = +p.ymax; document.getElementById('year-max').value = p.ymax; document.getElementById('year-max-val').textContent = p.ymax; }
   if (p.out === '0') { state.filterOutliers = false; document.getElementById('chk-outliers').checked = false; }
@@ -684,6 +706,24 @@ document.getElementById('price-max').addEventListener('input', e => {
   render();
 });
 document.getElementById('filter-rynek').addEventListener('change', e => { state.rynek = e.target.value; render(); });
+document.getElementById('m2-min').addEventListener('input', e => {
+  state.m2Min = +e.target.value;
+  document.getElementById('m2-min-val').textContent = (+e.target.value).toLocaleString('pl-PL');
+  render();
+});
+document.getElementById('m2-max').addEventListener('input', e => {
+  state.m2Max = +e.target.value;
+  document.getElementById('m2-max-val').textContent = (+e.target.value).toLocaleString('pl-PL');
+  render();
+});
+document.getElementById('share-btn').addEventListener('click', () => {
+  stateToHash();
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const btn = document.getElementById('share-btn');
+    btn.textContent = 'Skopiowano!';
+    setTimeout(() => { btn.textContent = 'Kopiuj link'; }, 2000);
+  });
+});
 document.getElementById('year-min').addEventListener('input', e => {
   state.yearMin = +e.target.value;
   document.getElementById('year-min-val').textContent = e.target.value;
