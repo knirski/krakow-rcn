@@ -131,6 +131,7 @@ input[type=text]::placeholder { color: #666; }
     <label><input type="checkbox" id="chk-lokale" checked/> Lokale (mieszkania) <span id="cnt-lokale" class="stat"></span></label>
     <label><input type="checkbox" id="chk-dzialki"/> Dzialki (grunty) <span id="cnt-dzialki" class="stat"></span></label>
     <label><input type="checkbox" id="chk-budynki"/> Budynki <span id="cnt-budynki" class="stat"></span></label>
+    <label><input type="checkbox" id="chk-dzielnice" checked/> Granice dzielnic</label>
   </div>
 
   <div class="section">
@@ -218,6 +219,7 @@ input[type=text]::placeholder { color: #666; }
 let DATA_LOKALE = [];
 let DATA_DZIALKI = [];
 let DATA_BUDYNKI = [];
+let DATA_DZIELNICE = null;
 
 async function loadGzJson(url) {
   const resp = await fetch(url);
@@ -245,6 +247,8 @@ async function loadAllData() {
   DATA_DZIALKI = await loadGzJson('data/dzialki.json.gz');
   setProgress(`Dzialki: ${DATA_DZIALKI.length.toLocaleString('pl-PL')}. Ladowanie budynkow...`);
   DATA_BUDYNKI = await loadGzJson('data/budynki.json.gz');
+  setProgress('Ladowanie granic dzielnic...');
+  DATA_DZIELNICE = await fetch('data/dzielnice.geojson').then(r => r.json());
   setProgress('Gotowe!');
 }
 
@@ -338,6 +342,7 @@ function updateLegend(field) {
 
 let state = {
   showLokale: true, showDzialki: false, showBudynki: false,
+  showDzielnice: true,
   colorBy: 'cena_za_m2', priceMin: 0, priceMax: 20000000,
   m2Min: 0, m2Max: 30000,
   rynek: '', yearMin: 2000, yearMax: 2026, filterOutliers: true,
@@ -648,6 +653,42 @@ function renderNow() {
     }));
   }
 
+  if (state.showDzielnice && DATA_DZIELNICE) {
+    layers.unshift(new deck.GeoJsonLayer({
+      id: 'dzielnice',
+      data: DATA_DZIELNICE,
+      stroked: true,
+      filled: false,
+      getLineColor: [125, 211, 252, 120],
+      getLineWidth: 2,
+      lineWidthUnits: 'pixels',
+      pickable: false,
+    }));
+    // District labels
+    const labels = DATA_DZIELNICE.features.map(f => {
+      const coords = f.geometry.coordinates[0];
+      let lngSum = 0, latSum = 0, n = 0;
+      for (const pt of coords) { lngSum += pt[0]; latSum += pt[1]; n++; }
+      return { name: f.properties.name, position: [lngSum / n, latSum / n] };
+    });
+    layers.push(new deck.TextLayer({
+      id: 'dzielnice-labels',
+      data: labels,
+      getPosition: d => d.position,
+      getText: d => d.name,
+      getSize: 13,
+      getColor: [125, 211, 252, 180],
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontWeight: 600,
+      outlineColor: [20, 20, 40, 200],
+      outlineWidth: 2,
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      pickable: false,
+      billboard: true,
+    }));
+  }
+
   document.getElementById('visible-count').textContent =
     `Widocznych: ${totalVisible.toLocaleString('pl-PL')} transakcji`;
   deckgl.setProps({ layers });
@@ -693,6 +734,7 @@ const deckgl = new deck.DeckGL({
 document.getElementById('chk-lokale').addEventListener('change', e => { state.showLokale = e.target.checked; streetIndex = null; render(); });
 document.getElementById('chk-dzialki').addEventListener('change', e => { state.showDzialki = e.target.checked; streetIndex = null; render(); });
 document.getElementById('chk-budynki').addEventListener('change', e => { state.showBudynki = e.target.checked; streetIndex = null; render(); });
+document.getElementById('chk-dzielnice').addEventListener('change', e => { state.showDzielnice = e.target.checked; render(); });
 document.getElementById('chk-outliers').addEventListener('change', e => { state.filterOutliers = e.target.checked; render(); });
 document.getElementById('color-by').addEventListener('change', e => { state.colorBy = e.target.value; updateLegend(state.colorBy); render(); });
 document.getElementById('price-min').addEventListener('input', e => {
