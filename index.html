@@ -615,7 +615,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 3, radiusMinPixels: 1, radiusMaxPixels: 20,
+      getRadius: 6, radiusMinPixels: 2, radiusMaxPixels: 40,
       pickable: true, opacity: 0.85, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -628,7 +628,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 5, radiusMinPixels: 1, radiusMaxPixels: 25,
+      getRadius: 10, radiusMinPixels: 2, radiusMaxPixels: 50,
       pickable: true, opacity: 0.75, radiusUnits: 'meters',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
@@ -642,7 +642,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 4, radiusMinPixels: 1, radiusMaxPixels: 22,
+      getRadius: 8, radiusMinPixels: 2, radiusMaxPixels: 44,
       pickable: true, opacity: 0.8, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
