@@ -20,6 +20,41 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #controls h2 { font-size: 15px; margin-bottom: 4px; color: #7dd3fc; }
 #controls .subtitle { font-size: 11px; color: #666; margin-bottom: 10px; }
 #controls .subtitle a { color: #888; }
+#toggle-btn {
+  display: none; position: absolute; top: 12px; left: 12px; z-index: 11;
+  background: rgba(20, 20, 40, 0.92); border: 1px solid rgba(255,255,255,0.08);
+  color: #7dd3fc; border-radius: 10px; padding: 10px 14px; font-size: 14px;
+  backdrop-filter: blur(8px); cursor: pointer;
+}
+#detail-panel {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+  background: rgba(15,15,30,0.97); padding: 16px 20px; max-height: 50vh;
+  overflow-y: auto; border-top: 1px solid rgba(125,211,252,0.3);
+  backdrop-filter: blur(8px);
+}
+#detail-panel .close-btn {
+  position: absolute; top: 8px; right: 12px; background: none; border: none;
+  color: #888; font-size: 22px; cursor: pointer; padding: 4px 8px;
+}
+@media (max-width: 600px) {
+  #toggle-btn { display: block; }
+  #controls {
+    top: 0; left: 0; right: 0; max-width: none; border-radius: 0;
+    max-height: 100vh; padding: 14px 16px 20px;
+    transition: transform 0.3s ease;
+  }
+  #controls.collapsed { transform: translateX(-110%); }
+  #controls h2 { padding-right: 40px; }
+  #close-controls {
+    display: block !important; position: absolute; top: 10px; right: 12px;
+    background: none; border: none; color: #888; font-size: 22px; cursor: pointer;
+  }
+  select, input[type=range] { font-size: 16px; }
+  label { font-size: 15px; padding: 4px 0; }
+  .section { margin-bottom: 16px; }
+  .range-row { gap: 12px; font-size: 14px; }
+  input[type=range] { height: 28px; }
+}
 .section { margin-bottom: 12px; }
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 6px; }
 label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px; cursor: pointer; }
@@ -65,7 +100,9 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   <div class="progress" id="load-progress">Ladowanie danych...</div>
 </div>
 <div id="map"></div>
+<button id="toggle-btn" onclick="document.getElementById('controls').classList.remove('collapsed');this.style.display='none'">&#9776; Filtry</button>
 <div id="controls">
+  <button id="close-controls" style="display:none" onclick="document.getElementById('controls').classList.add('collapsed');document.getElementById('toggle-btn').style.display='block'">&times;</button>
   <h2>Rejestr Cen Nieruchomosci – Krak&oacute;w</h2>
   <div class="subtitle">Dane: <a href="https://eco.um.krakow.pl/rcn" target="_blank">eco.um.krakow.pl/rcn</a></div>
 
@@ -132,6 +169,7 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   <div class="stat" id="visible-count"></div>
 </div>
 <div id="tooltip"></div>
+<div id="detail-panel"><button class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button><div id="detail-content"></div></div>
 
 <script>
 let DATA_LOKALE = [];
@@ -345,7 +383,8 @@ function buildTooltip(d) {
   return rows.join('\n');
 }
 
-const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: 12, pitch: 45, bearing: 0 };
+const isMobile = window.innerWidth <= 600;
+const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: isMobile ? 11 : 12, pitch: isMobile ? 0 : 45, bearing: 0 };
 const tooltipEl = document.getElementById('tooltip');
 let renderQueued = false;
 
@@ -408,7 +447,7 @@ const deckgl = new deck.DeckGL({
   mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   initialViewState: INITIAL_VIEW,
   controller: true,
-  onHover: ({object, x, y}) => {
+  onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
       tooltipEl.innerHTML = buildTooltip(object);
       tooltipEl.style.display = 'block';
@@ -419,6 +458,13 @@ const deckgl = new deck.DeckGL({
       if (rect.bottom > window.innerHeight) tooltipEl.style.top = (y - rect.height - 12) + 'px';
     } else {
       tooltipEl.style.display = 'none';
+    }
+  },
+  onClick: ({object}) => {
+    if (object && isMobile) {
+      const panel = document.getElementById('detail-panel');
+      document.getElementById('detail-content').innerHTML = buildTooltip(object);
+      panel.style.display = 'block';
     }
   },
 });
@@ -453,6 +499,11 @@ document.getElementById('year-max').addEventListener('input', e => {
   document.getElementById('year-max-val').textContent = e.target.value;
   render();
 });
+
+if (isMobile) {
+  document.getElementById('controls').classList.add('collapsed');
+  document.getElementById('toggle-btn').style.display = 'block';
+}
 
 loadAllData().then(() => {
   document.getElementById('cnt-lokale').textContent = `(${DATA_LOKALE.length.toLocaleString('pl-PL')})`;
