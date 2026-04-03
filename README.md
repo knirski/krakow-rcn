@@ -2,7 +2,7 @@
 
 Interactive deck.gl map of all property transactions from [Rejestr Cen Nieruchomości (RCN)](https://eco.um.krakow.pl/rcn) for the city of Kraków.
 
-Data is downloaded locally (the source server blocks cloud IPs), converted from GML, and deployed to GitHub Pages on push.
+Deployed to GitHub Pages. Data must be updated locally since the source server blocks cloud IPs.
 
 ## Data source
 
