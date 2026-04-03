@@ -571,6 +571,11 @@ const tooltipEl = document.getElementById('tooltip');
 let renderQueued = false;
 let currentZoom = INITIAL_VIEW.zoom;
 
+function zoomRadius(base) {
+  // Exponential scaling: doubles every 2 zoom levels
+  return Math.max(2, Math.min(40, base * Math.pow(2, (currentZoom - 12) / 2)));
+}
+
 function render() {
   if (renderQueued) return;
   renderQueued = true;
@@ -592,8 +597,8 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 200, radiusMinPixels: 2, radiusMaxPixels: 30,
-      pickable: true, opacity: 0.85, radiusUnits: 'meters',
+      getRadius: zoomRadius(4),
+      pickable: true, opacity: 0.85, radiusUnits: 'pixels',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
   }
@@ -605,8 +610,8 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 300, radiusMinPixels: 3, radiusMaxPixels: 35,
-      pickable: true, opacity: 0.75, radiusUnits: 'meters',
+      getRadius: zoomRadius(5),
+      pickable: true, opacity: 0.75, radiusUnits: 'pixels',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -619,8 +624,8 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 250, radiusMinPixels: 2, radiusMaxPixels: 32,
-      pickable: true, opacity: 0.8, radiusUnits: 'meters',
+      getRadius: zoomRadius(4.5),
+      pickable: true, opacity: 0.8, radiusUnits: 'pixels',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
   }
@@ -642,7 +647,9 @@ const deckgl = new deck.DeckGL({
   initialViewState: INITIAL_VIEW,
   controller: true,
   onViewStateChange: ({viewState}) => {
+    const prevZoom = currentZoom;
     currentZoom = viewState.zoom;
+    if (Math.abs(currentZoom - prevZoom) > 0.3) render();
   },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
