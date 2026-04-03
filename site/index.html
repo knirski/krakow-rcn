@@ -553,7 +553,7 @@ function searchStreet(query) {
 const BASEMAPS = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-  satellite: 'https://api.maptiler.com/maps/hybrid/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+  satellite: { version: 8, sources: { esri: { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '&copy; Esri' } }, layers: [{ id: 'esri-satellite', type: 'raster', source: 'esri' }] },
 };
 
 // --- Main ---
@@ -592,7 +592,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 20, radiusMinPixels: 2, radiusMaxPixels: 50,
+      getRadius: 200, radiusMinPixels: 2, radiusMaxPixels: 30,
       pickable: true, opacity: 0.85, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -605,7 +605,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 30, radiusMinPixels: 3, radiusMaxPixels: 60,
+      getRadius: 300, radiusMinPixels: 3, radiusMaxPixels: 35,
       pickable: true, opacity: 0.75, radiusUnits: 'meters',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
@@ -619,7 +619,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: 25, radiusMinPixels: 2, radiusMaxPixels: 55,
+      getRadius: 250, radiusMinPixels: 2, radiusMaxPixels: 32,
       pickable: true, opacity: 0.8, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
