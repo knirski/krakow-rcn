@@ -36,37 +36,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   position: absolute; top: 8px; right: 12px; background: none; border: none;
   color: #888; font-size: 22px; cursor: pointer; padding: 4px 8px;
 }
-@media (max-width: 600px) {
-  #toggle-btn { display: block; }
-  #controls {
-    top: 0; left: 0; right: 0; max-width: none; border-radius: 0;
-    max-height: 100vh; padding: 14px 16px 20px;
-    transition: transform 0.3s ease;
-  }
-  #controls.collapsed { transform: translateX(-110%); }
-  #controls h2 { padding-right: 40px; }
-  #close-controls {
-    display: block !important; position: absolute; top: 10px; right: 12px;
-    background: none; border: none; color: #888; font-size: 22px; cursor: pointer;
-  }
-  select, input[type=range] { font-size: 16px; }
-  label { font-size: 15px; padding: 4px 0; }
-  .section { margin-bottom: 16px; }
-  .range-row { gap: 12px; font-size: 14px; }
-  input[type=range] { height: 28px; }
-}
 .section { margin-bottom: 12px; }
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 6px; }
 label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px; cursor: pointer; }
 label input[type=checkbox] { accent-color: #7dd3fc; }
 select, input[type=range] { width: 100%; font-size: 12px; margin-top: 2px; }
 select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px; }
+input[type=text] { width: 100%; font-size: 13px; margin-top: 2px; padding: 6px 8px; background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius: 4px; outline: none; }
+input[type=text]:focus { border-color: #7dd3fc; }
+input[type=text]::placeholder { color: #666; }
 .range-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .range-row input { flex: 1; }
 .range-val { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; color: #aaa; }
 .stat { font-size: 12px; color: #aaa; margin-top: 6px; }
 .color-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; margin-top: 8px; }
 .color-legend .bar { height: 10px; flex: 1; border-radius: 3px; }
+.basemap-row { display: flex; gap: 4px; margin-top: 4px; }
+.basemap-row button { flex: 1; padding: 5px 0; font-size: 11px; background: #2a2a4a; color: #aaa; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
+.basemap-row button.active { background: #3b5998; color: #fff; border-color: #7dd3fc; }
+#histogram { width: 100%; height: 48px; margin-top: 4px; border-radius: 4px; }
+#stats-box { font-size: 11px; color: #aaa; margin-top: 6px; line-height: 1.6; }
+#stats-box span { color: #ccc; font-variant-numeric: tabular-nums; }
+.search-results { max-height: 120px; overflow-y: auto; margin-top: 4px; }
+.search-results div { padding: 4px 6px; font-size: 12px; color: #aaa; cursor: pointer; border-radius: 3px; }
+.search-results div:hover { background: #2a2a4a; color: #eee; }
 
 #tooltip {
   position: absolute; z-index: 20; pointer-events: none;
@@ -91,6 +84,27 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
 #loading .progress { font-size: 14px; color: #aaa; }
 .spinner { width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #7dd3fc; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  #toggle-btn { display: block; }
+  #controls {
+    top: 0; left: 0; right: 0; max-width: none; border-radius: 0;
+    max-height: 100vh; padding: 14px 16px 20px;
+    transition: transform 0.3s ease;
+  }
+  #controls.collapsed { transform: translateX(-110%); }
+  #controls h2 { padding-right: 40px; }
+  #close-controls {
+    display: block !important; position: absolute; top: 10px; right: 12px;
+    background: none; border: none; color: #888; font-size: 22px; cursor: pointer;
+  }
+  select, input[type=range] { font-size: 16px; }
+  input[type=text] { font-size: 16px; }
+  label { font-size: 15px; padding: 4px 0; }
+  .section { margin-bottom: 16px; }
+  .range-row { gap: 12px; font-size: 14px; }
+  input[type=range] { height: 28px; }
+}
 </style>
 </head>
 <body>
@@ -105,6 +119,12 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   <button id="close-controls" style="display:none" onclick="document.getElementById('controls').classList.add('collapsed');document.getElementById('toggle-btn').style.display='block'">&times;</button>
   <h2>Rejestr Cen Nieruchomosci – Krak&oacute;w</h2>
   <div class="subtitle">Dane: <a href="https://eco.um.krakow.pl/rcn" target="_blank">eco.um.krakow.pl/rcn</a></div>
+
+  <div class="section">
+    <div class="section-title">Szukaj ulicy</div>
+    <input type="text" id="search" placeholder="np. Florianska, Dietla..." autocomplete="off"/>
+    <div class="search-results" id="search-results"></div>
+  </div>
 
   <div class="section">
     <div class="section-title">Warstwy</div>
@@ -126,15 +146,17 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
   </div>
 
   <div class="section">
-    <div class="section-title">Promien punktu</div>
-    <div class="range-row">
-      <input type="range" id="radius" min="10" max="500" value="60"/>
-      <span class="range-val" id="radius-val">60 m</span>
+    <div class="section-title">Mapa bazowa</div>
+    <div class="basemap-row">
+      <button class="active" data-style="dark">Ciemna</button>
+      <button data-style="light">Jasna</button>
+      <button data-style="satellite">Satelita</button>
     </div>
   </div>
 
   <div class="section">
     <div class="section-title">Filtr ceny transakcji (PLN)</div>
+    <canvas id="histogram"></canvas>
     <div class="range-row">
       <input type="range" id="price-min" min="0" max="5000000" step="10000" value="0"/>
       <span class="range-val" id="price-min-val">0</span>
@@ -166,7 +188,13 @@ select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius
     </div>
   </div>
 
+  <div class="section">
+    <label><input type="checkbox" id="chk-outliers" checked/> Filtruj anomalie cenowe</label>
+    <div class="stat">Ukrywa &lt;100 i &gt;200 000 PLN/m2</div>
+  </div>
+
   <div class="stat" id="visible-count"></div>
+  <div id="stats-box"></div>
 </div>
 <div id="tooltip"></div>
 <div id="detail-panel"><button class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button><div id="detail-content"></div></div>
@@ -199,12 +227,10 @@ async function loadAllData() {
   setProgress('Ladowanie lokali (mieszkania)...');
   DATA_LOKALE = await loadGzJson('data/lokale.json.gz');
   setProgress(`Lokale: ${DATA_LOKALE.length.toLocaleString('pl-PL')}. Ladowanie dzialek...`);
-
   DATA_DZIALKI = await loadGzJson('data/dzialki.json.gz');
   setProgress(`Dzialki: ${DATA_DZIALKI.length.toLocaleString('pl-PL')}. Ladowanie budynkow...`);
-
   DATA_BUDYNKI = await loadGzJson('data/budynki.json.gz');
-  setProgress('Gotowe! Inicjalizacja mapy...');
+  setProgress('Gotowe!');
 }
 
 function plnFmt(v) {
@@ -264,10 +290,7 @@ function getColorFn(field) {
     };
   }
   if (field === 'rynek' || field === 'rodzaj_transakcji') {
-    return (d) => {
-      const v = d[field];
-      return CAT_COLORS[v] || [148, 163, 184, 200];
-    };
+    return (d) => CAT_COLORS[d[field]] || [148, 163, 184, 200];
   }
   if (field === 'rok') {
     return (d) => {
@@ -300,9 +323,8 @@ function updateLegend(field) {
 
 let state = {
   showLokale: true, showDzialki: false, showBudynki: false,
-  colorBy: 'cena_za_m2', radius: 60,
-  priceMin: 0, priceMax: 20000000,
-  rynek: '', yearMin: 2000, yearMax: 2026,
+  colorBy: 'cena_za_m2', priceMin: 0, priceMax: 20000000,
+  rynek: '', yearMin: 2000, yearMax: 2026, filterOutliers: true,
 };
 
 function filterData(data) {
@@ -312,6 +334,7 @@ function filterData(data) {
     if (c != null && (c < state.priceMin || c > state.priceMax)) return false;
     const y = getYear(d.data_dokumentu);
     if (y != null && (y < state.yearMin || y > state.yearMax)) return false;
+    if (state.filterOutliers && d.cena_za_m2 != null && (d.cena_za_m2 < 100 || d.cena_za_m2 > 200000)) return false;
     return true;
   });
 }
@@ -319,22 +342,18 @@ function filterData(data) {
 function buildTooltip(d) {
   const address = [d.ulica, d.numer, d.miejscowosc].filter(Boolean).join(' ');
   let rows = [];
-
   const type = d.id_lokalu ? 'Lokal' : d.id_dzialki ? 'Dzialka' : d.id_budynku ? 'Budynek' : 'Transakcja';
   const id = d.id_lokalu || d.id_dzialki || d.id_budynku || '';
   rows.push(`<div class="tt-title">${type}: ${id}</div>`);
   if (address) rows.push(`<div class="tt-row">\ud83d\udccd ${address}</div>`);
-
   rows.push(`<div class="tt-price">${plnFmt(d.cena_transakcji)}</div>`);
   if (d.cena_za_m2 != null) rows.push(`<div class="tt-row" style="color:#f0abfc">${plnFmt(d.cena_za_m2)}/m\u00b2</div>`);
-
   rows.push('<br/>');
   if (d.rodzaj_transakcji) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj: </span>${d.rodzaj_transakcji}</div>`);
   if (d.rynek) rows.push(`<div class="tt-row"><span class="tt-label">Rynek: </span>${d.rynek}</div>`);
   if (d.sprzedajacy) rows.push(`<div class="tt-row"><span class="tt-label">Sprzedajacy: </span>${d.sprzedajacy}</div>`);
   if (d.kupujacy) rows.push(`<div class="tt-row"><span class="tt-label">Kupujacy: </span>${d.kupujacy}</div>`);
   if (d.vat_transakcji != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT transakcji: </span>${plnFmt(d.vat_transakcji)}</div>`);
-
   if (d.rodzaj_nieruchomosci) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj nieruch.: </span>${d.rodzaj_nieruchomosci}</div>`);
   if (d.cena_nieruchomosci != null && d.cena_nieruchomosci !== d.cena_transakcji)
     rows.push(`<div class="tt-row"><span class="tt-label">Cena nieruch.: </span>${plnFmt(d.cena_nieruchomosci)}</div>`);
@@ -343,7 +362,6 @@ function buildTooltip(d) {
   if (d.pow_nieruchomosci_gruntowej_ha != null)
     rows.push(`<div class="tt-row"><span class="tt-label">Pow. grunt.: </span>${d.pow_nieruchomosci_gruntowej_ha} ha</div>`);
   if (d.opis_nieruchomosci) rows.push(`<div class="tt-row"><span class="tt-label">Opis: </span>${d.opis_nieruchomosci}</div>`);
-
   if (d.funkcja_lokalu) rows.push(`<div class="tt-row"><span class="tt-label">Funkcja lokalu: </span>${d.funkcja_lokalu}</div>`);
   if (d.liczba_izb != null) rows.push(`<div class="tt-row"><span class="tt-label">Izby: </span>${d.liczba_izb}</div>`);
   if (d.kondygnacja != null) rows.push(`<div class="tt-row"><span class="tt-label">Kondygnacja: </span>${d.kondygnacja}</div>`);
@@ -353,7 +371,6 @@ function buildTooltip(d) {
   if (d.pow_pomieszczen_przynaleznych_m2 != null)
     rows.push(`<div class="tt-row"><span class="tt-label">Pow. przynalezna: </span>${d.pow_pomieszczen_przynaleznych_m2} m\u00b2</div>`);
   if (d.vat_lokal != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT lokal: </span>${plnFmt(d.vat_lokal)}</div>`);
-
   if (d.id_dzialki) {
     if (d.pow_ewidencyjna_ha != null) rows.push(`<div class="tt-row"><span class="tt-label">Pow. ewid.: </span>${d.pow_ewidencyjna_ha} ha</div>`);
     if (d.cena_dzialki != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena dzialki: </span>${plnFmt(d.cena_dzialki)}</div>`);
@@ -362,31 +379,197 @@ function buildTooltip(d) {
     if (d.cena_za_ha != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena/ha: </span>${plnFmt(d.cena_za_ha)}</div>`);
     if (d.vat_dzialka != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT dzialka: </span>${plnFmt(d.vat_dzialka)}</div>`);
   }
-
   if (d.id_budynku) {
     if (d.rodzaj_budynku) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj bud.: </span>${d.rodzaj_budynku}</div>`);
     if (d.pow_uzytkowa_budynku_m2 != null) rows.push(`<div class="tt-row"><span class="tt-label">Pow. bud.: </span>${d.pow_uzytkowa_budynku_m2} m\u00b2</div>`);
     if (d.cena_budynku != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena bud.: </span>${plnFmt(d.cena_budynku)}</div>`);
     if (d.vat_budynek != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT budynek: </span>${plnFmt(d.vat_budynek)}</div>`);
   }
-
   const info = d.dodatkowe_info_lokal || d.dodatkowe_info_dzialka || d.dodatkowe_info_budynek;
   if (info) rows.push(`<div class="tt-row"><span class="tt-label">Info: </span>${info}</div>`);
-
   if (d.oznaczenie_dokumentu || d.data_dokumentu) {
     rows.push('<br/>');
     if (d.oznaczenie_dokumentu) rows.push(`<div class="tt-row"><span class="tt-label">Dokument: </span>${d.oznaczenie_dokumentu}</div>`);
     if (d.data_dokumentu) rows.push(`<div class="tt-row"><span class="tt-label">Data: </span>${d.data_dokumentu}</div>`);
     if (d.notariusz) rows.push(`<div class="tt-row"><span class="tt-label">Notariusz: </span>${d.notariusz}</div>`);
   }
-
   return rows.join('\n');
 }
 
+// --- Histogram ---
+function drawHistogram(allData) {
+  const canvas = document.getElementById('histogram');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth; const h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const prices = [];
+  for (const d of allData) {
+    const p = d.cena_za_m2;
+    if (p != null && p > 100 && p < 200000) prices.push(p);
+  }
+  if (!prices.length) return;
+
+  const buckets = 50;
+  const maxP = 80000;
+  const counts = new Array(buckets).fill(0);
+  for (const p of prices) {
+    const i = Math.min(Math.floor(p / maxP * buckets), buckets - 1);
+    counts[i]++;
+  }
+  const maxCount = Math.max(...counts);
+  if (!maxCount) return;
+
+  const barW = w / buckets;
+  for (let i = 0; i < buckets; i++) {
+    const barH = (counts[i] / maxCount) * h;
+    const t = i / buckets;
+    const c = viridisColor(t);
+    const price = i / buckets * maxP;
+    const inRange = price >= state.priceMin && price <= state.priceMax;
+    ctx.fillStyle = inRange ? `rgba(${c[0]},${c[1]},${c[2]},0.8)` : `rgba(${c[0]},${c[1]},${c[2]},0.15)`;
+    ctx.fillRect(i * barW, h - barH, barW - 1, barH);
+  }
+}
+
+// --- Stats ---
+function updateStats(allFiltered) {
+  const el = document.getElementById('stats-box');
+  const prices = [];
+  for (const d of allFiltered) {
+    if (d.cena_za_m2 != null) prices.push(d.cena_za_m2);
+  }
+  if (!prices.length) { el.innerHTML = ''; return; }
+  prices.sort((a, b) => a - b);
+  const sum = prices.reduce((a, b) => a + b, 0);
+  const avg = Math.round(sum / prices.length);
+  const median = Math.round(prices[Math.floor(prices.length / 2)]);
+  const p10 = Math.round(prices[Math.floor(prices.length * 0.1)]);
+  const p90 = Math.round(prices[Math.floor(prices.length * 0.9)]);
+  el.innerHTML = `Cena/m\u00b2: \u015brednia <span>${avg.toLocaleString('pl-PL')}</span> | Mediana <span>${median.toLocaleString('pl-PL')}</span> | P10 <span>${p10.toLocaleString('pl-PL')}</span> | P90 <span>${p90.toLocaleString('pl-PL')}</span>`;
+}
+
+// --- URL hash state ---
+function stateToHash() {
+  const v = deckgl.viewManager?.getViewState() || {};
+  const parts = [];
+  if (v.longitude) parts.push(`lng=${v.longitude.toFixed(4)}`);
+  if (v.latitude) parts.push(`lat=${v.latitude.toFixed(4)}`);
+  if (v.zoom) parts.push(`z=${v.zoom.toFixed(1)}`);
+  if (state.showLokale) parts.push('lok=1');
+  if (state.showDzialki) parts.push('dzi=1');
+  if (state.showBudynki) parts.push('bud=1');
+  if (state.colorBy !== 'cena_za_m2') parts.push(`col=${state.colorBy}`);
+  if (state.rynek) parts.push(`ryn=${state.rynek}`);
+  if (state.priceMin > 0) parts.push(`pmin=${state.priceMin}`);
+  if (state.priceMax < 20000000) parts.push(`pmax=${state.priceMax}`);
+  if (state.yearMin > 2000) parts.push(`ymin=${state.yearMin}`);
+  if (state.yearMax < 2026) parts.push(`ymax=${state.yearMax}`);
+  if (!state.filterOutliers) parts.push('out=0');
+  history.replaceState(null, '', '#' + parts.join('&'));
+}
+
+function hashToState() {
+  const h = location.hash.slice(1);
+  if (!h) return {};
+  const params = {};
+  for (const part of h.split('&')) {
+    const [k, v] = part.split('=');
+    params[k] = v;
+  }
+  return params;
+}
+
+function applyHash() {
+  const p = hashToState();
+  const view = {};
+  if (p.lng) view.longitude = parseFloat(p.lng);
+  if (p.lat) view.latitude = parseFloat(p.lat);
+  if (p.z) view.zoom = parseFloat(p.z);
+  if (p.lok !== undefined || p.dzi !== undefined || p.bud !== undefined) {
+    state.showLokale = p.lok === '1';
+    state.showDzialki = p.dzi === '1';
+    state.showBudynki = p.bud === '1';
+    document.getElementById('chk-lokale').checked = state.showLokale;
+    document.getElementById('chk-dzialki').checked = state.showDzialki;
+    document.getElementById('chk-budynki').checked = state.showBudynki;
+  }
+  if (p.col) { state.colorBy = p.col; document.getElementById('color-by').value = p.col; }
+  if (p.ryn) { state.rynek = p.ryn; document.getElementById('filter-rynek').value = p.ryn; }
+  if (p.pmin) { state.priceMin = +p.pmin; document.getElementById('price-min').value = p.pmin; document.getElementById('price-min-val').textContent = (+p.pmin).toLocaleString('pl-PL'); }
+  if (p.pmax) { state.priceMax = +p.pmax; document.getElementById('price-max').value = p.pmax; document.getElementById('price-max-val').textContent = (+p.pmax).toLocaleString('pl-PL'); }
+  if (p.ymin) { state.yearMin = +p.ymin; document.getElementById('year-min').value = p.ymin; document.getElementById('year-min-val').textContent = p.ymin; }
+  if (p.ymax) { state.yearMax = +p.ymax; document.getElementById('year-max').value = p.ymax; document.getElementById('year-max-val').textContent = p.ymax; }
+  if (p.out === '0') { state.filterOutliers = false; document.getElementById('chk-outliers').checked = false; }
+  return view;
+}
+
+// --- Search ---
+let streetIndex = null;
+function buildStreetIndex() {
+  const streets = new Map();
+  const allData = [
+    ...(state.showLokale ? DATA_LOKALE : []),
+    ...(state.showDzialki ? DATA_DZIALKI : []),
+    ...(state.showBudynki ? DATA_BUDYNKI : []),
+  ];
+  for (const d of allData) {
+    if (!d.ulica) continue;
+    const key = d.ulica.toUpperCase();
+    if (!streets.has(key)) streets.set(key, { name: d.ulica, lons: [], lats: [], count: 0 });
+    const s = streets.get(key);
+    s.lons.push(d.lon); s.lats.push(d.lat); s.count++;
+  }
+  streetIndex = [...streets.values()].sort((a, b) => b.count - a.count);
+}
+
+function searchStreet(query) {
+  const el = document.getElementById('search-results');
+  if (!query || query.length < 2) { el.innerHTML = ''; return; }
+  if (!streetIndex) buildStreetIndex();
+  const q = query.toUpperCase();
+  const matches = streetIndex.filter(s => s.name.toUpperCase().includes(q)).slice(0, 8);
+  el.innerHTML = matches.map(s =>
+    `<div data-street="${s.name}">${s.name} <span style="color:#666">(${s.count})</span></div>`
+  ).join('');
+  el.querySelectorAll('div').forEach(div => {
+    div.addEventListener('click', () => {
+      const name = div.dataset.street;
+      const s = streetIndex.find(x => x.name === name);
+      if (!s) return;
+      const lon = s.lons.reduce((a, b) => a + b) / s.lons.length;
+      const lat = s.lats.reduce((a, b) => a + b) / s.lats.length;
+      deckgl.setProps({ initialViewState: { longitude: lon, latitude: lat, zoom: 16, pitch: 45, bearing: 0, transitionDuration: 1000 }});
+      el.innerHTML = '';
+      document.getElementById('search').value = name;
+    });
+  });
+}
+
+// --- Basemap ---
+const BASEMAPS = {
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  satellite: 'https://api.maptiler.com/maps/hybrid/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+};
+
+// --- Main ---
 const isMobile = window.innerWidth <= 600;
-const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: isMobile ? 11 : 12, pitch: isMobile ? 0 : 45, bearing: 0 };
+const hashView = applyHash();
+const INITIAL_VIEW = {
+  longitude: hashView.longitude || 19.945,
+  latitude: hashView.latitude || 50.06,
+  zoom: hashView.zoom || (isMobile ? 11 : 12),
+  pitch: isMobile ? 0 : 45,
+  bearing: 0,
+};
+
 const tooltipEl = document.getElementById('tooltip');
 let renderQueued = false;
+let currentZoom = INITIAL_VIEW.zoom;
 
 function render() {
   if (renderQueued) return;
@@ -394,19 +577,30 @@ function render() {
   requestAnimationFrame(renderNow);
 }
 
+function autoRadius(zoom) {
+  // Smaller points when zoomed out, larger when zoomed in
+  if (zoom < 12) return 120;
+  if (zoom < 14) return 60;
+  if (zoom < 16) return 30;
+  return 15;
+}
+
 function renderNow() {
   renderQueued = false;
   const colorFn = getColorFn(state.colorBy);
   const layers = [];
   let totalVisible = 0;
+  const allFiltered = [];
+  const r = autoRadius(currentZoom);
 
   if (state.showLokale && DATA_LOKALE.length) {
     const filtered = filterData(DATA_LOKALE);
     totalVisible += filtered.length;
+    allFiltered.push(filtered);
     layers.push(new deck.ScatterplotLayer({
       id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius, radiusMinPixels: 2, radiusMaxPixels: 200,
+      getRadius: r, radiusMinPixels: 2, radiusMaxPixels: 200,
       pickable: true, opacity: 0.85, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -415,10 +609,11 @@ function renderNow() {
   if (state.showDzialki && DATA_DZIALKI.length) {
     const filtered = filterData(DATA_DZIALKI);
     totalVisible += filtered.length;
+    allFiltered.push(filtered);
     layers.push(new deck.ScatterplotLayer({
       id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
+      getRadius: r * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
       pickable: true, opacity: 0.75, radiusUnits: 'meters',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
@@ -428,10 +623,11 @@ function renderNow() {
   if (state.showBudynki && DATA_BUDYNKI.length) {
     const filtered = filterData(DATA_BUDYNKI);
     totalVisible += filtered.length;
+    allFiltered.push(filtered);
     layers.push(new deck.ScatterplotLayer({
       id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: state.radius * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
+      getRadius: r * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
       pickable: true, opacity: 0.8, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -440,13 +636,22 @@ function renderNow() {
   document.getElementById('visible-count').textContent =
     `Widocznych: ${totalVisible.toLocaleString('pl-PL')} transakcji`;
   deckgl.setProps({ layers });
+
+  // Update stats and histogram (not on every frame, debounced via render queue)
+  const flat = allFiltered.flat();
+  updateStats(flat);
+  drawHistogram(flat);
+  stateToHash();
 }
 
 const deckgl = new deck.DeckGL({
   container: 'map',
-  mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  mapStyle: BASEMAPS.dark,
   initialViewState: INITIAL_VIEW,
   controller: true,
+  onViewStateChange: ({viewState}) => {
+    currentZoom = viewState.zoom;
+  },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
       tooltipEl.innerHTML = buildTooltip(object);
@@ -469,15 +674,12 @@ const deckgl = new deck.DeckGL({
   },
 });
 
-document.getElementById('chk-lokale').addEventListener('change', e => { state.showLokale = e.target.checked; render(); });
-document.getElementById('chk-dzialki').addEventListener('change', e => { state.showDzialki = e.target.checked; render(); });
-document.getElementById('chk-budynki').addEventListener('change', e => { state.showBudynki = e.target.checked; render(); });
+// --- Controls ---
+document.getElementById('chk-lokale').addEventListener('change', e => { state.showLokale = e.target.checked; streetIndex = null; render(); });
+document.getElementById('chk-dzialki').addEventListener('change', e => { state.showDzialki = e.target.checked; streetIndex = null; render(); });
+document.getElementById('chk-budynki').addEventListener('change', e => { state.showBudynki = e.target.checked; streetIndex = null; render(); });
+document.getElementById('chk-outliers').addEventListener('change', e => { state.filterOutliers = e.target.checked; render(); });
 document.getElementById('color-by').addEventListener('change', e => { state.colorBy = e.target.value; updateLegend(state.colorBy); render(); });
-document.getElementById('radius').addEventListener('input', e => {
-  state.radius = +e.target.value;
-  document.getElementById('radius-val').textContent = state.radius + ' m';
-  render();
-});
 document.getElementById('price-min').addEventListener('input', e => {
   state.priceMin = +e.target.value;
   document.getElementById('price-min-val').textContent = (+e.target.value).toLocaleString('pl-PL');
@@ -500,11 +702,25 @@ document.getElementById('year-max').addEventListener('input', e => {
   render();
 });
 
+// Search
+document.getElementById('search').addEventListener('input', e => searchStreet(e.target.value));
+
+// Basemap buttons
+document.querySelectorAll('.basemap-row button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.basemap-row button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    deckgl.setProps({ mapStyle: BASEMAPS[btn.dataset.style] });
+  });
+});
+
+// Mobile
 if (isMobile) {
   document.getElementById('controls').classList.add('collapsed');
   document.getElementById('toggle-btn').style.display = 'block';
 }
 
+// --- Init ---
 loadAllData().then(() => {
   document.getElementById('cnt-lokale').textContent = `(${DATA_LOKALE.length.toLocaleString('pl-PL')})`;
   document.getElementById('cnt-dzialki').textContent = `(${DATA_DZIALKI.length.toLocaleString('pl-PL')})`;
