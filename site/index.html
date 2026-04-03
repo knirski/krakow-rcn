@@ -577,13 +577,6 @@ function render() {
   requestAnimationFrame(renderNow);
 }
 
-function autoRadius(zoom) {
-  // Smaller points when zoomed out, larger when zoomed in
-  if (zoom < 12) return 120;
-  if (zoom < 14) return 60;
-  if (zoom < 16) return 30;
-  return 15;
-}
 
 function renderNow() {
   renderQueued = false;
@@ -591,7 +584,6 @@ function renderNow() {
   const layers = [];
   let totalVisible = 0;
   const allFiltered = [];
-  const r = autoRadius(currentZoom);
 
   if (state.showLokale && DATA_LOKALE.length) {
     const filtered = filterData(DATA_LOKALE);
@@ -600,7 +592,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'lokale', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: r, radiusMinPixels: 2, radiusMaxPixels: 200,
+      getRadius: 20, radiusMinPixels: 2, radiusMaxPixels: 50,
       pickable: true, opacity: 0.85, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -613,7 +605,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'dzialki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: r * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
+      getRadius: 30, radiusMinPixels: 3, radiusMaxPixels: 60,
       pickable: true, opacity: 0.75, radiusUnits: 'meters',
       stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
       updateTriggers: { getFillColor: [state.colorBy] },
@@ -627,7 +619,7 @@ function renderNow() {
     layers.push(new deck.ScatterplotLayer({
       id: 'budynki', data: filtered,
       getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
-      getRadius: r * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
+      getRadius: 25, radiusMinPixels: 2, radiusMaxPixels: 55,
       pickable: true, opacity: 0.8, radiusUnits: 'meters',
       updateTriggers: { getFillColor: [state.colorBy] },
     }));
@@ -650,9 +642,7 @@ const deckgl = new deck.DeckGL({
   initialViewState: INITIAL_VIEW,
   controller: true,
   onViewStateChange: ({viewState}) => {
-    const oldR = autoRadius(currentZoom);
     currentZoom = viewState.zoom;
-    if (autoRadius(currentZoom) !== oldR) render();
   },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
