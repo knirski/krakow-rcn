@@ -650,7 +650,9 @@ const deckgl = new deck.DeckGL({
   initialViewState: INITIAL_VIEW,
   controller: true,
   onViewStateChange: ({viewState}) => {
+    const oldR = autoRadius(currentZoom);
     currentZoom = viewState.zoom;
+    if (autoRadius(currentZoom) !== oldR) render();
   },
   onHover: isMobile ? undefined : ({object, x, y}) => {
     if (object) {
