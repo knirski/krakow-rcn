@@ -1,0 +1,7 @@
+*.gpkg
+*.gml
+*.zip
+*.gfs
+gml_data/
+__pycache__/
+.wrangler/

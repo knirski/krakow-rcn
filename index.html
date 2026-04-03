@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Rejestr Cen Nieruchomości – Kraków</title>
+<script src="https://unpkg.com/deck.gl@9.1.4/dist.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; }
+#map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+#controls {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  background: rgba(20, 20, 40, 0.92); border-radius: 10px; padding: 14px 16px;
+  max-width: 340px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08);
+  max-height: calc(100vh - 24px); overflow-y: auto;
+}
+#controls h2 { font-size: 15px; margin-bottom: 4px; color: #7dd3fc; }
+#controls .subtitle { font-size: 11px; color: #666; margin-bottom: 10px; }
+#controls .subtitle a { color: #888; }
+.section { margin-bottom: 12px; }
+.section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 6px; }
+label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px; cursor: pointer; }
+label input[type=checkbox] { accent-color: #7dd3fc; }
+select, input[type=range] { width: 100%; font-size: 12px; margin-top: 2px; }
+select { background: #2a2a4a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px; }
+.range-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.range-row input { flex: 1; }
+.range-val { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; color: #aaa; }
+.stat { font-size: 12px; color: #aaa; margin-top: 6px; }
+.color-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; margin-top: 8px; }
+.color-legend .bar { height: 10px; flex: 1; border-radius: 3px; }
+
+#tooltip {
+  position: absolute; z-index: 20; pointer-events: none;
+  background: rgba(15,15,30,0.95); border-radius: 8px; padding: 10px 14px;
+  font-size: 12px; line-height: 1.6; max-width: 380px;
+  border: 1px solid rgba(125,211,252,0.3); backdrop-filter: blur(6px);
+  display: none;
+}
+#tooltip .tt-title { font-weight: 600; color: #7dd3fc; margin-bottom: 4px; font-size: 13px; }
+#tooltip .tt-price { font-size: 18px; font-weight: 700; color: #f0abfc; }
+#tooltip .tt-row { color: #ccc; }
+#tooltip .tt-label { color: #888; }
+
+#loading {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+  background: #1a1a2e; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.5s;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+#loading h1 { font-size: 20px; color: #7dd3fc; }
+#loading .progress { font-size: 14px; color: #aaa; }
+.spinner { width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #7dd3fc; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <h1>Rejestr Cen Nieruchomości – Krak&oacute;w</h1>
+  <div class="progress" id="load-progress">Ladowanie danych...</div>
+</div>
+<div id="map"></div>
+<div id="controls">
+  <h2>Rejestr Cen Nieruchomosci – Krak&oacute;w</h2>
+  <div class="subtitle">Dane: <a href="https://eco.um.krakow.pl/rcn" target="_blank">eco.um.krakow.pl/rcn</a></div>
+
+  <div class="section">
+    <div class="section-title">Warstwy</div>
+    <label><input type="checkbox" id="chk-lokale" checked/> Lokale (mieszkania) <span id="cnt-lokale" class="stat"></span></label>
+    <label><input type="checkbox" id="chk-dzialki"/> Dzialki (grunty) <span id="cnt-dzialki" class="stat"></span></label>
+    <label><input type="checkbox" id="chk-budynki"/> Budynki <span id="cnt-budynki" class="stat"></span></label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Kolorowanie</div>
+    <select id="color-by">
+      <option value="cena_za_m2">Cena za m2</option>
+      <option value="cena_transakcji">Cena transakcji</option>
+      <option value="rynek">Rynek (pierwotny/wtorny)</option>
+      <option value="rodzaj_transakcji">Rodzaj transakcji</option>
+      <option value="rok">Rok dokumentu</option>
+    </select>
+    <div class="color-legend" id="legend"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Promien punktu</div>
+    <div class="range-row">
+      <input type="range" id="radius" min="10" max="500" value="60"/>
+      <span class="range-val" id="radius-val">60 m</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Filtr ceny transakcji (PLN)</div>
+    <div class="range-row">
+      <input type="range" id="price-min" min="0" max="5000000" step="10000" value="0"/>
+      <span class="range-val" id="price-min-val">0</span>
+    </div>
+    <div class="range-row">
+      <input type="range" id="price-max" min="0" max="20000000" step="50000" value="20000000"/>
+      <span class="range-val" id="price-max-val">20 000 000</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Filtr rynku</div>
+    <select id="filter-rynek">
+      <option value="">wszystkie</option>
+      <option value="pierwotny">pierwotny</option>
+      <option value="wtorny">wtorny</option>
+    </select>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Filtr daty dokumentu</div>
+    <div class="range-row">
+      <input type="range" id="year-min" min="2000" max="2026" step="1" value="2000"/>
+      <span class="range-val" id="year-min-val">2000</span>
+    </div>
+    <div class="range-row">
+      <input type="range" id="year-max" min="2000" max="2026" step="1" value="2026"/>
+      <span class="range-val" id="year-max-val">2026</span>
+    </div>
+  </div>
+
+  <div class="stat" id="visible-count"></div>
+</div>
+<div id="tooltip"></div>
+
+<script>
+let DATA_LOKALE = [];
+let DATA_DZIALKI = [];
+let DATA_BUDYNKI = [];
+
+async function loadGzJson(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+  const ds = new DecompressionStream('gzip');
+  const decompressed = resp.body.pipeThrough(ds);
+  const reader = decompressed.getReader();
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  return JSON.parse(await new Blob(chunks).text());
+}
+
+function setProgress(msg) {
+  document.getElementById('load-progress').textContent = msg;
+}
+
+async function loadAllData() {
+  setProgress('Ladowanie lokali (mieszkania)...');
+  DATA_LOKALE = await loadGzJson('data/lokale.json.gz');
+  setProgress(`Lokale: ${DATA_LOKALE.length.toLocaleString('pl-PL')}. Ladowanie dzialek...`);
+
+  DATA_DZIALKI = await loadGzJson('data/dzialki.json.gz');
+  setProgress(`Dzialki: ${DATA_DZIALKI.length.toLocaleString('pl-PL')}. Ladowanie budynkow...`);
+
+  DATA_BUDYNKI = await loadGzJson('data/budynki.json.gz');
+  setProgress('Gotowe! Inicjalizacja mapy...');
+}
+
+function plnFmt(v) {
+  if (v == null) return '\u2014';
+  return v.toLocaleString('pl-PL', {maximumFractionDigits: 0}) + ' PLN';
+}
+
+function getYear(d) {
+  if (!d || d.length < 4) return null;
+  return parseInt(d.substring(0, 4));
+}
+
+const VIRIDIS = [
+  [68, 1, 84], [72, 36, 117], [65, 68, 135], [53, 95, 141],
+  [42, 120, 142], [33, 145, 140], [34, 168, 132], [68, 191, 112],
+  [122, 209, 81], [189, 223, 38], [253, 231, 37]
+];
+
+function viridisColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const idx = t * (VIRIDIS.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, VIRIDIS.length - 1);
+  const f = idx - lo;
+  return [
+    VIRIDIS[lo][0] + (VIRIDIS[hi][0] - VIRIDIS[lo][0]) * f,
+    VIRIDIS[lo][1] + (VIRIDIS[hi][1] - VIRIDIS[lo][1]) * f,
+    VIRIDIS[lo][2] + (VIRIDIS[hi][2] - VIRIDIS[lo][2]) * f,
+    200
+  ];
+}
+
+const CAT_COLORS = {
+  'pierwotny': [59, 130, 246, 200],
+  'wtorny': [249, 115, 22, 200],
+  'sprzedaz': [34, 197, 94, 200],
+  'zamiana': [168, 85, 247, 200],
+  'oddanie w uzytkowanie wieczyste': [236, 72, 153, 200],
+  'wniesienie aportem': [234, 179, 8, 200],
+  'zniesienie wspolwlasnosci': [6, 182, 212, 200],
+  'inna': [148, 163, 184, 200],
+};
+
+function getColorFn(field) {
+  if (field === 'cena_za_m2') {
+    return (d) => {
+      const v = d.cena_za_m2;
+      if (v == null) return [80, 80, 80, 120];
+      return viridisColor(Math.log10(Math.max(v, 1)) / Math.log10(80000));
+    };
+  }
+  if (field === 'cena_transakcji') {
+    return (d) => {
+      const v = d.cena_transakcji;
+      if (v == null) return [80, 80, 80, 120];
+      return viridisColor(Math.log10(Math.max(v, 1)) / Math.log10(20000000));
+    };
+  }
+  if (field === 'rynek' || field === 'rodzaj_transakcji') {
+    return (d) => {
+      const v = d[field];
+      return CAT_COLORS[v] || [148, 163, 184, 200];
+    };
+  }
+  if (field === 'rok') {
+    return (d) => {
+      const y = getYear(d.data_dokumentu);
+      if (!y) return [80, 80, 80, 120];
+      return viridisColor((y - 2000) / 26);
+    };
+  }
+  return () => [125, 211, 252, 180];
+}
+
+function updateLegend(field) {
+  const el = document.getElementById('legend');
+  const grad = VIRIDIS.map((c,i) => `rgb(${c}) ${Math.round(i/(VIRIDIS.length-1)*100)}%`).join(',');
+  if (field === 'cena_za_m2') {
+    el.innerHTML = `<span>1k</span><div class="bar" style="background:linear-gradient(to right,${grad})"></div><span>80k PLN/m2</span>`;
+  } else if (field === 'cena_transakcji') {
+    el.innerHTML = `<span>1k</span><div class="bar" style="background:linear-gradient(to right,${grad})"></div><span>20M PLN</span>`;
+  } else if (field === 'rok') {
+    el.innerHTML = `<span>2000</span><div class="bar" style="background:linear-gradient(to right,${grad})"></div><span>2026</span>`;
+  } else if (field === 'rynek') {
+    el.innerHTML = '<span style="color:rgb(59,130,246)">\u25cf pierwotny</span> <span style="color:rgb(249,115,22)">\u25cf wtorny</span>';
+  } else if (field === 'rodzaj_transakcji') {
+    el.innerHTML = Object.entries(CAT_COLORS)
+      .map(([k,c]) => `<span style="color:rgb(${c[0]},${c[1]},${c[2]})">\u25cf ${k}</span>`).join(' ');
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+let state = {
+  showLokale: true, showDzialki: false, showBudynki: false,
+  colorBy: 'cena_za_m2', radius: 60,
+  priceMin: 0, priceMax: 20000000,
+  rynek: '', yearMin: 2000, yearMax: 2026,
+};
+
+function filterData(data) {
+  return data.filter(d => {
+    if (state.rynek && d.rynek !== state.rynek) return false;
+    const c = d.cena_transakcji;
+    if (c != null && (c < state.priceMin || c > state.priceMax)) return false;
+    const y = getYear(d.data_dokumentu);
+    if (y != null && (y < state.yearMin || y > state.yearMax)) return false;
+    return true;
+  });
+}
+
+function buildTooltip(d) {
+  const address = [d.ulica, d.numer, d.miejscowosc].filter(Boolean).join(' ');
+  let rows = [];
+
+  const type = d.id_lokalu ? 'Lokal' : d.id_dzialki ? 'Dzialka' : d.id_budynku ? 'Budynek' : 'Transakcja';
+  const id = d.id_lokalu || d.id_dzialki || d.id_budynku || '';
+  rows.push(`<div class="tt-title">${type}: ${id}</div>`);
+  if (address) rows.push(`<div class="tt-row">\ud83d\udccd ${address}</div>`);
+
+  rows.push(`<div class="tt-price">${plnFmt(d.cena_transakcji)}</div>`);
+  if (d.cena_za_m2 != null) rows.push(`<div class="tt-row" style="color:#f0abfc">${plnFmt(d.cena_za_m2)}/m\u00b2</div>`);
+
+  rows.push('<br/>');
+  if (d.rodzaj_transakcji) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj: </span>${d.rodzaj_transakcji}</div>`);
+  if (d.rynek) rows.push(`<div class="tt-row"><span class="tt-label">Rynek: </span>${d.rynek}</div>`);
+  if (d.sprzedajacy) rows.push(`<div class="tt-row"><span class="tt-label">Sprzedajacy: </span>${d.sprzedajacy}</div>`);
+  if (d.kupujacy) rows.push(`<div class="tt-row"><span class="tt-label">Kupujacy: </span>${d.kupujacy}</div>`);
+  if (d.vat_transakcji != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT transakcji: </span>${plnFmt(d.vat_transakcji)}</div>`);
+
+  if (d.rodzaj_nieruchomosci) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj nieruch.: </span>${d.rodzaj_nieruchomosci}</div>`);
+  if (d.cena_nieruchomosci != null && d.cena_nieruchomosci !== d.cena_transakcji)
+    rows.push(`<div class="tt-row"><span class="tt-label">Cena nieruch.: </span>${plnFmt(d.cena_nieruchomosci)}</div>`);
+  if (d.prawo_do_nieruchomosci) rows.push(`<div class="tt-row"><span class="tt-label">Prawo: </span>${d.prawo_do_nieruchomosci}</div>`);
+  if (d.udzial_w_prawie) rows.push(`<div class="tt-row"><span class="tt-label">Udzial: </span>${d.udzial_w_prawie}</div>`);
+  if (d.pow_nieruchomosci_gruntowej_ha != null)
+    rows.push(`<div class="tt-row"><span class="tt-label">Pow. grunt.: </span>${d.pow_nieruchomosci_gruntowej_ha} ha</div>`);
+  if (d.opis_nieruchomosci) rows.push(`<div class="tt-row"><span class="tt-label">Opis: </span>${d.opis_nieruchomosci}</div>`);
+
+  if (d.funkcja_lokalu) rows.push(`<div class="tt-row"><span class="tt-label">Funkcja lokalu: </span>${d.funkcja_lokalu}</div>`);
+  if (d.liczba_izb != null) rows.push(`<div class="tt-row"><span class="tt-label">Izby: </span>${d.liczba_izb}</div>`);
+  if (d.kondygnacja != null) rows.push(`<div class="tt-row"><span class="tt-label">Kondygnacja: </span>${d.kondygnacja}</div>`);
+  if (d.pow_uzytkowa_m2 != null) rows.push(`<div class="tt-row"><span class="tt-label">Pow. uzytkowa: </span>${d.pow_uzytkowa_m2} m\u00b2</div>`);
+  if (d.cena_lokalu != null && d.cena_lokalu !== d.cena_transakcji)
+    rows.push(`<div class="tt-row"><span class="tt-label">Cena lokalu: </span>${plnFmt(d.cena_lokalu)}</div>`);
+  if (d.pow_pomieszczen_przynaleznych_m2 != null)
+    rows.push(`<div class="tt-row"><span class="tt-label">Pow. przynalezna: </span>${d.pow_pomieszczen_przynaleznych_m2} m\u00b2</div>`);
+  if (d.vat_lokal != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT lokal: </span>${plnFmt(d.vat_lokal)}</div>`);
+
+  if (d.id_dzialki) {
+    if (d.pow_ewidencyjna_ha != null) rows.push(`<div class="tt-row"><span class="tt-label">Pow. ewid.: </span>${d.pow_ewidencyjna_ha} ha</div>`);
+    if (d.cena_dzialki != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena dzialki: </span>${plnFmt(d.cena_dzialki)}</div>`);
+    if (d.sposob_uzytkowania) rows.push(`<div class="tt-row"><span class="tt-label">Uzytkowanie: </span>${d.sposob_uzytkowania}</div>`);
+    if (d.przeznaczenie_mpzp) rows.push(`<div class="tt-row"><span class="tt-label">MPZP: </span>${d.przeznaczenie_mpzp}</div>`);
+    if (d.cena_za_ha != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena/ha: </span>${plnFmt(d.cena_za_ha)}</div>`);
+    if (d.vat_dzialka != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT dzialka: </span>${plnFmt(d.vat_dzialka)}</div>`);
+  }
+
+  if (d.id_budynku) {
+    if (d.rodzaj_budynku) rows.push(`<div class="tt-row"><span class="tt-label">Rodzaj bud.: </span>${d.rodzaj_budynku}</div>`);
+    if (d.pow_uzytkowa_budynku_m2 != null) rows.push(`<div class="tt-row"><span class="tt-label">Pow. bud.: </span>${d.pow_uzytkowa_budynku_m2} m\u00b2</div>`);
+    if (d.cena_budynku != null) rows.push(`<div class="tt-row"><span class="tt-label">Cena bud.: </span>${plnFmt(d.cena_budynku)}</div>`);
+    if (d.vat_budynek != null) rows.push(`<div class="tt-row"><span class="tt-label">VAT budynek: </span>${plnFmt(d.vat_budynek)}</div>`);
+  }
+
+  const info = d.dodatkowe_info_lokal || d.dodatkowe_info_dzialka || d.dodatkowe_info_budynek;
+  if (info) rows.push(`<div class="tt-row"><span class="tt-label">Info: </span>${info}</div>`);
+
+  if (d.oznaczenie_dokumentu || d.data_dokumentu) {
+    rows.push('<br/>');
+    if (d.oznaczenie_dokumentu) rows.push(`<div class="tt-row"><span class="tt-label">Dokument: </span>${d.oznaczenie_dokumentu}</div>`);
+    if (d.data_dokumentu) rows.push(`<div class="tt-row"><span class="tt-label">Data: </span>${d.data_dokumentu}</div>`);
+    if (d.notariusz) rows.push(`<div class="tt-row"><span class="tt-label">Notariusz: </span>${d.notariusz}</div>`);
+  }
+
+  return rows.join('\n');
+}
+
+const INITIAL_VIEW = { longitude: 19.945, latitude: 50.06, zoom: 12, pitch: 45, bearing: 0 };
+const tooltipEl = document.getElementById('tooltip');
+let renderQueued = false;
+
+function render() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(renderNow);
+}
+
+function renderNow() {
+  renderQueued = false;
+  const colorFn = getColorFn(state.colorBy);
+  const layers = [];
+  let totalVisible = 0;
+
+  if (state.showLokale && DATA_LOKALE.length) {
+    const filtered = filterData(DATA_LOKALE);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'lokale', data: filtered,
+      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+      getRadius: state.radius, radiusMinPixels: 2, radiusMaxPixels: 200,
+      pickable: true, opacity: 0.85, radiusUnits: 'meters',
+      updateTriggers: { getFillColor: [state.colorBy] },
+    }));
+  }
+
+  if (state.showDzialki && DATA_DZIALKI.length) {
+    const filtered = filterData(DATA_DZIALKI);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'dzialki', data: filtered,
+      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+      getRadius: state.radius * 1.5, radiusMinPixels: 3, radiusMaxPixels: 300,
+      pickable: true, opacity: 0.75, radiusUnits: 'meters',
+      stroked: true, getLineColor: [255, 255, 255, 60], lineWidthMinPixels: 1,
+      updateTriggers: { getFillColor: [state.colorBy] },
+    }));
+  }
+
+  if (state.showBudynki && DATA_BUDYNKI.length) {
+    const filtered = filterData(DATA_BUDYNKI);
+    totalVisible += filtered.length;
+    layers.push(new deck.ScatterplotLayer({
+      id: 'budynki', data: filtered,
+      getPosition: d => [d.lon, d.lat], getFillColor: colorFn,
+      getRadius: state.radius * 1.2, radiusMinPixels: 2, radiusMaxPixels: 250,
+      pickable: true, opacity: 0.8, radiusUnits: 'meters',
+      updateTriggers: { getFillColor: [state.colorBy] },
+    }));
+  }
+
+  document.getElementById('visible-count').textContent =
+    `Widocznych: ${totalVisible.toLocaleString('pl-PL')} transakcji`;
+  deckgl.setProps({ layers });
+}
+
+const deckgl = new deck.DeckGL({
+  container: 'map',
+  mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  initialViewState: INITIAL_VIEW,
+  controller: true,
+  onHover: ({object, x, y}) => {
+    if (object) {
+      tooltipEl.innerHTML = buildTooltip(object);
+      tooltipEl.style.display = 'block';
+      tooltipEl.style.left = (x + 12) + 'px';
+      tooltipEl.style.top = (y + 12) + 'px';
+      const rect = tooltipEl.getBoundingClientRect();
+      if (rect.right > window.innerWidth) tooltipEl.style.left = (x - rect.width - 12) + 'px';
+      if (rect.bottom > window.innerHeight) tooltipEl.style.top = (y - rect.height - 12) + 'px';
+    } else {
+      tooltipEl.style.display = 'none';
+    }
+  },
+});
+
+document.getElementById('chk-lokale').addEventListener('change', e => { state.showLokale = e.target.checked; render(); });
+document.getElementById('chk-dzialki').addEventListener('change', e => { state.showDzialki = e.target.checked; render(); });
+document.getElementById('chk-budynki').addEventListener('change', e => { state.showBudynki = e.target.checked; render(); });
+document.getElementById('color-by').addEventListener('change', e => { state.colorBy = e.target.value; updateLegend(state.colorBy); render(); });
+document.getElementById('radius').addEventListener('input', e => {
+  state.radius = +e.target.value;
+  document.getElementById('radius-val').textContent = state.radius + ' m';
+  render();
+});
+document.getElementById('price-min').addEventListener('input', e => {
+  state.priceMin = +e.target.value;
+  document.getElementById('price-min-val').textContent = (+e.target.value).toLocaleString('pl-PL');
+  render();
+});
+document.getElementById('price-max').addEventListener('input', e => {
+  state.priceMax = +e.target.value;
+  document.getElementById('price-max-val').textContent = (+e.target.value).toLocaleString('pl-PL');
+  render();
+});
+document.getElementById('filter-rynek').addEventListener('change', e => { state.rynek = e.target.value; render(); });
+document.getElementById('year-min').addEventListener('input', e => {
+  state.yearMin = +e.target.value;
+  document.getElementById('year-min-val').textContent = e.target.value;
+  render();
+});
+document.getElementById('year-max').addEventListener('input', e => {
+  state.yearMax = +e.target.value;
+  document.getElementById('year-max-val').textContent = e.target.value;
+  render();
+});
+
+loadAllData().then(() => {
+  document.getElementById('cnt-lokale').textContent = `(${DATA_LOKALE.length.toLocaleString('pl-PL')})`;
+  document.getElementById('cnt-dzialki').textContent = `(${DATA_DZIALKI.length.toLocaleString('pl-PL')})`;
+  document.getElementById('cnt-budynki').textContent = `(${DATA_BUDYNKI.length.toLocaleString('pl-PL')})`;
+  updateLegend('cena_za_m2');
+  render();
+  document.getElementById('loading').classList.add('done');
+}).catch(err => {
+  setProgress('Error: ' + err.message);
+  console.error(err);
+});
+</script>
+</body>
+</html>
