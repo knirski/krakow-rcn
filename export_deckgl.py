@@ -90,7 +90,7 @@ def export_lokale(conn):
             l.powUzytkowaPomieszczenPrzynal, l.dodatkoweInformacje, l.kwotaPodatkuVAT,
             dok.oznaczenieDokumentu, dok.dataSporzadzeniaDokumentu, dok.tworcaDokumentu,
             a.miejscowosc, a.ulica, a.numerPorzadkowy,
-            l.geom
+            l.georeferencja
         FROM RCN_Transakcja t
         JOIN xlink_trans_nieruchomosc tn ON t.gml_id = tn.transakcja_id
         JOIN RCN_Nieruchomosc n ON n.gml_id = tn.nieruchomosc_id
@@ -104,7 +104,7 @@ def export_lokale(conn):
             JOIN RCN_Adres a ON a.gml_id = la.adres_id
             GROUP BY la.lokal_id
         ) a ON l.gml_id = a.lokal_id
-        WHERE l.geom IS NOT NULL
+        WHERE l.georeferencja IS NOT NULL
     """).fetchall()
 
     features = []
